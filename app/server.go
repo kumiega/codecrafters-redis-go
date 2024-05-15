@@ -31,6 +31,7 @@ func main() {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+
 	fmt.Println("New connection established")
 
 	buf := make([]byte, 1024)
@@ -44,13 +45,17 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 
-		ping := "*1\r\n$4\r\nPING\r\n"
-		pong := "+PONG\r\n"
+		fmt.Printf("Recived: \n%q\n", string(buf[:n]))
 
-		if ping == string(buf[:n]) {
-			_, err = conn.Write([]byte(pong))
+		response, err := ProcessRedisClientCommand(buf[:n])
+		if err != nil {
+			fmt.Println("Error with command processing:", err)
+			return
 		}
 
+		fmt.Printf("Responded: \n%q\n", string(response))
+
+		_, err = conn.Write(response)
 		if err != nil {
 			fmt.Println("Error writing to connection:", err)
 			return
