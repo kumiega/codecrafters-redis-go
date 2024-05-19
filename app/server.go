@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -14,9 +15,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	defer l.Close()
+	aof, err := NewRedisAof("redis.db")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	fmt.Println("Redis server starting on port 6379")
 
+	defer aof.Close()
+
+	aof.Read(func(value RedisValue) {
+		command := strings.ToUpper(value.array[0].bulk)
+		args := value.array[1:]
+
+		handler, ok := RedisCommands[command]
+		if !ok {
+			fmt.Println("Invalid command: ", command)
+			return
+		}
+
+		handler(args)
+	})
+
+	defer l.Close()
 	for {
 		conn, err := l.Accept()
 
@@ -25,40 +47,57 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn)
+		go handleConnection(conn, aof)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, aof *RedisAof) {
 	defer conn.Close()
 
 	fmt.Println("New connection established")
 
-	buf := make([]byte, 1024)
-
 	for {
-		n, err := conn.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				fmt.Println("Error reading from connection:", err)
-			}
+		resp := NewRedisRespReader(conn)
+		value, err := resp.Read()
+
+		if err == io.EOF {
+			fmt.Println("Client disconnected")
 			return
 		}
 
-		fmt.Printf("Recived: \n%q\n", string(buf[:n]))
-
-		response, err := ProcessRedisClientCommand(buf[:n])
 		if err != nil {
-			fmt.Println("Error with command processing:", err)
+			fmt.Println(err)
 			return
 		}
 
-		fmt.Printf("Responded: \n%q\n", string(response))
-
-		_, err = conn.Write(response)
-		if err != nil {
-			fmt.Println("Error writing to connection:", err)
-			return
+		if value.dataType != "array" {
+			fmt.Println("Invalid request, expected array")
+			continue
 		}
+
+		if len(value.array) == 0 {
+			fmt.Println("Invalid request, expected array length")
+			continue
+		}
+
+		command := strings.ToUpper(value.array[0].bulk)
+		args := value.array[1:]
+
+		writer := NewRedisRespWriter(conn)
+
+		handler, ok := RedisCommands[command]
+
+		if !ok {
+			fmt.Println("Invalid command", command)
+			writer.Write(RedisValue{dataType: "string", str: ""})
+			continue
+		}
+
+		if command == "SET" || command == "HSET" {
+			aof.Write(value)
+		}
+
+		result := handler(args)
+		writer.Write(result)
 	}
 }
