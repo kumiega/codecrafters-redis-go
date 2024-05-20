@@ -8,48 +8,51 @@ import (
 )
 
 const (
-	REDIS_STRING  = '+'
-	REDIS_ERROR   = '-'
-	REDIS_INTEGER = ':'
-	REDIS_BULK    = '$'
-	REDIS_ARRAY   = '*'
+	_STRING  = '+'
+	_ERROR   = '-'
+	_INTEGER = ':'
+	_BULK    = '$'
+	_ARRAY   = '*'
 )
 
-type RedisValue struct {
+type Value struct {
 	dataType string
 	str      string
 	num      int
 	bulk     string
-	array    []RedisValue
+	array    []Value
 }
 
-type RedisResp struct {
+type Resp struct {
 	reader *bufio.Reader
 }
 
-func NewRedisRespReader(rd io.Reader) *RedisResp {
-	return &RedisResp{reader: bufio.NewReader(rd)}
+// Returns RESP Reader
+func NewRespReader(rd io.Reader) *Resp {
+	return &Resp{reader: bufio.NewReader(rd)}
 }
 
-func (r *RedisResp) Read() (RedisValue, error) {
-	_type, err := r.reader.ReadByte()
+// Reads bytes and determines content
+func (r *Resp) Read() (Value, error) {
+	dataType, err := r.reader.ReadByte()
 
 	if err != nil {
-		return RedisValue{}, err
+		return Value{}, err
 	}
 
-	switch _type {
-	case REDIS_ARRAY:
+	switch dataType {
+	case _ARRAY:
 		return r.readArray()
-	case REDIS_BULK:
+	case _BULK:
 		return r.readBulk()
 	default:
-		fmt.Printf("Unknown type: %v", string(_type))
-		return RedisValue{}, nil
+		fmt.Printf("Unknown type: %v", string(dataType))
+		return Value{}, nil
 	}
 }
 
-func (r *RedisResp) readLine() (line []byte, n int, err error) {
+// Reads each line
+func (r *Resp) readLine() (line []byte, n int, err error) {
 	for {
 		b, err := r.reader.ReadByte()
 		if err != nil {
@@ -64,7 +67,8 @@ func (r *RedisResp) readLine() (line []byte, n int, err error) {
 	return line[:len(line)-2], n, nil
 }
 
-func (r *RedisResp) readInteger() (x int, n int, err error) {
+// Reads bytes and converts to integer
+func (r *Resp) readInteger() (x int, n int, err error) {
 	line, n, err := r.readLine()
 	if err != nil {
 		return 0, 0, err
@@ -76,8 +80,9 @@ func (r *RedisResp) readInteger() (x int, n int, err error) {
 	return int(i64), n, nil
 }
 
-func (r *RedisResp) readArray() (RedisValue, error) {
-	v := RedisValue{}
+// Reads bytes as RESP array
+func (r *Resp) readArray() (Value, error) {
+	v := Value{}
 	v.dataType = "array"
 
 	len, _, err := r.readInteger()
@@ -85,7 +90,7 @@ func (r *RedisResp) readArray() (RedisValue, error) {
 		return v, err
 	}
 
-	v.array = make([]RedisValue, 0)
+	v.array = make([]Value, 0)
 	for i := 0; i < len; i++ {
 		val, err := r.Read()
 		if err != nil {
@@ -98,8 +103,9 @@ func (r *RedisResp) readArray() (RedisValue, error) {
 	return v, nil
 }
 
-func (r *RedisResp) readBulk() (RedisValue, error) {
-	v := RedisValue{}
+// Reads bytes as RESP bulk
+func (r *Resp) readBulk() (Value, error) {
+	v := Value{}
 
 	v.dataType = "bulk"
 

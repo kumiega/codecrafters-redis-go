@@ -5,15 +5,16 @@ import (
 	"strconv"
 )
 
-type RedisRespWriter struct {
+type RespWriter struct {
 	writer io.Writer
 }
 
-func NewRedisRespWriter(w io.Writer) *RedisRespWriter {
-	return &RedisRespWriter{writer: w}
+// Returns new RESP writer
+func NewRespWriter(w io.Writer) *RespWriter {
+	return &RespWriter{writer: w}
 }
 
-func (w *RedisRespWriter) Write(v RedisValue) error {
+func (w *RespWriter) Write(v Value) error {
 	var bytes = v.Marshal()
 
 	_, err := w.writer.Write(bytes)
@@ -24,7 +25,7 @@ func (w *RedisRespWriter) Write(v RedisValue) error {
 	return nil
 }
 
-func (v RedisValue) Marshal() []byte {
+func (v Value) Marshal() []byte {
 	switch v.dataType {
 	case "array":
 		return v.marshalArray()
@@ -41,10 +42,10 @@ func (v RedisValue) Marshal() []byte {
 	}
 }
 
-func (v RedisValue) marshalArray() []byte {
+func (v Value) marshalArray() []byte {
 	len := len(v.array)
 	var bytes []byte
-	bytes = append(bytes, REDIS_ARRAY)
+	bytes = append(bytes, _ARRAY)
 	bytes = append(bytes, strconv.Itoa(len)...)
 	bytes = append(bytes, '\r', '\n')
 
@@ -55,9 +56,9 @@ func (v RedisValue) marshalArray() []byte {
 	return bytes
 }
 
-func (v RedisValue) marshalBulk() []byte {
+func (v Value) marshalBulk() []byte {
 	var bytes []byte
-	bytes = append(bytes, REDIS_BULK)
+	bytes = append(bytes, _BULK)
 	bytes = append(bytes, strconv.Itoa(len(v.bulk))...)
 	bytes = append(bytes, '\r', '\n')
 	bytes = append(bytes, v.bulk...)
@@ -66,22 +67,22 @@ func (v RedisValue) marshalBulk() []byte {
 	return bytes
 }
 
-func (v RedisValue) marshalString() []byte {
+func (v Value) marshalString() []byte {
 	var bytes []byte
-	bytes = append(bytes, REDIS_STRING)
+	bytes = append(bytes, _STRING)
 	bytes = append(bytes, v.str...)
 	bytes = append(bytes, '\r', '\n')
 
 	return bytes
 }
 
-func (v RedisValue) marshallNull() []byte {
+func (v Value) marshallNull() []byte {
 	return []byte("$-1\r\n")
 }
 
-func (v RedisValue) marshallError() []byte {
+func (v Value) marshallError() []byte {
 	var bytes []byte
-	bytes = append(bytes, REDIS_ERROR)
+	bytes = append(bytes, _ERROR)
 	bytes = append(bytes, v.str...)
 	bytes = append(bytes, '\r', '\n')
 
