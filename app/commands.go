@@ -63,15 +63,10 @@ func help(args []Value, ctx *Context) Value {
 
 // Echoes info about current Redis instance
 func info(args []Value, ctx *Context) Value {
-	replica := *ctx.Replica
-	role := "master"
-
-	if replica != "" {
-		role = "slave"
-	}
-
 	info := "# Replication\n"
-	info += fmt.Sprintf("role:%s\n", role)
+	info += fmt.Sprintf("role:%s\n", ctx.Replica.Role)
+	info += fmt.Sprintf("master_replid:%s\n", ctx.Replica.MasterReplId)
+	info += fmt.Sprintf("master_repl_offset:%d\n", ctx.Replica.MasterReplOffset)
 
 	return Value{dataType: "bulk", bulk: info}
 }
