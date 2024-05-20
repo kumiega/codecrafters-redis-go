@@ -18,6 +18,7 @@ func init() {
 	commands = map[string]Handler{
 		"COMMAND": command,
 		"HELP":    help,
+		"INFO":    info,
 		"ECHO":    echo,
 		"PING":    ping,
 		"SET":     set,
@@ -58,6 +59,14 @@ func help(args []Value, storage *Storage) Value {
 	}
 
 	return Value{dataType: "array", array: commandList}
+}
+
+func info(args []Value, storage *Storage) Value {
+	info := ""
+	info += "# Replication\n"
+	info += "role:master\n"
+
+	return Value{dataType: "bulk", bulk: info}
 }
 
 // Echoes back the input.
