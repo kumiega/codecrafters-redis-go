@@ -46,7 +46,7 @@ func (r *Resp) Read() (Value, error) {
 	case _BULK:
 		return r.readBulk()
 	default:
-		fmt.Printf("Unknown type: %v", string(dataType))
+		fmt.Printf("Unknown type: %v\n", string(dataType))
 		return Value{}, nil
 	}
 }
