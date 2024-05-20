@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-type Handler func([]Value, *Storage) Value
+type Handler func([]Value, *Context) Value
 
-func (f Handler) Handle(args []Value, storage *Storage) Value {
-	return f(args, storage)
+func (f Handler) Handle(args []Value, ctx *Context) Value {
+	return f(args, ctx)
 }
 
 var commands map[string]Handler
@@ -27,7 +27,7 @@ func init() {
 }
 
 // Handles the incoming command.
-func HandleCommand(value Value, storage *Storage) Value {
+func HandleCommand(value Value, ctx *Context) Value {
 	command := strings.ToUpper(value.array[0].bulk)
 	args := value.array[1:]
 
@@ -38,16 +38,16 @@ func HandleCommand(value Value, storage *Storage) Value {
 		return Value{dataType: "string", str: ""}
 	}
 
-	return handler.Handle(args, storage)
+	return handler.Handle(args, ctx)
 }
 
 // Support testing with redis-cli.
-func command(args []Value, storage *Storage) Value {
+func command(args []Value, ctx *Context) Value {
 	return Value{dataType: "string", str: "To see all available commands use 'help' command"}
 }
 
 // Provides a list of available commands.
-func help(args []Value, storage *Storage) Value {
+func help(args []Value, ctx *Context) Value {
 	commandList := make([]Value, 0, len(commands))
 
 	for cmd := range commands {
@@ -61,16 +61,23 @@ func help(args []Value, storage *Storage) Value {
 	return Value{dataType: "array", array: commandList}
 }
 
-func info(args []Value, storage *Storage) Value {
-	info := ""
-	info += "# Replication\n"
-	info += "role:master\n"
+// Echoes info about current Redis instance
+func info(args []Value, ctx *Context) Value {
+	replica := *ctx.Replica
+	role := "master"
+
+	if replica != "" {
+		role = "slave"
+	}
+
+	info := "# Replication\n"
+	info += fmt.Sprintf("role:%s\n", role)
 
 	return Value{dataType: "bulk", bulk: info}
 }
 
 // Echoes back the input.
-func echo(args []Value, storage *Storage) Value {
+func echo(args []Value, ctx *Context) Value {
 	if len(args) != 1 {
 		return Value{dataType: "error", str: "ERR wrong number of arguments for 'echo' command"}
 	}
@@ -79,7 +86,7 @@ func echo(args []Value, storage *Storage) Value {
 }
 
 // Replies with PONG or echoes the provided argument.
-func ping(args []Value, storage *Storage) Value {
+func ping(args []Value, ctx *Context) Value {
 	if len(args) == 0 {
 		return Value{dataType: "string", str: "PONG"}
 	}
@@ -88,7 +95,7 @@ func ping(args []Value, storage *Storage) Value {
 }
 
 // Sets a value in the storage.
-func set(args []Value, storage *Storage) Value {
+func set(args []Value, ctx *Context) Value {
 	if len(args) != 2 && len(args) != 4 {
 		return Value{dataType: "error", str: "ERR wrong number of arguments for 'set' command"}
 	}
@@ -102,7 +109,7 @@ func set(args []Value, storage *Storage) Value {
 			return Value{dataType: "error", str: "ERR expiration should be integer"}
 		}
 
-		err := storage.SetWithExpiration(args[0].bulk, args[1].bulk, args[3].bulk)
+		err := ctx.Storage.SetWithExpiration(args[0].bulk, args[1].bulk, args[3].bulk)
 		if err != nil {
 			return Value{dataType: "error", str: "ERR could not set expiration time"}
 		}
@@ -110,17 +117,17 @@ func set(args []Value, storage *Storage) Value {
 		return Value{dataType: "string", str: "OK"}
 	}
 
-	storage.Set(args[0].bulk, args[1].bulk)
+	ctx.Storage.Set(args[0].bulk, args[1].bulk)
 	return Value{dataType: "string", str: "OK"}
 }
 
 // Retrieves a value from the storage.
-func get(args []Value, storage *Storage) Value {
+func get(args []Value, ctx *Context) Value {
 	if len(args) != 1 {
 		return Value{dataType: "error", str: "ERR wrong number of arguments for 'get' command"}
 	}
 
-	value := storage.Get(args[0].bulk)
+	value := ctx.Storage.Get(args[0].bulk)
 
 	if value == "" {
 		return Value{dataType: "null"}

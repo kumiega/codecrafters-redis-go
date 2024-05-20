@@ -7,7 +7,7 @@ import (
 )
 
 // Handles incomming connection
-func HandleConnection(conn net.Conn, storage *Storage) {
+func HandleConnection(conn net.Conn, ctx *Context) {
 	defer conn.Close()
 
 	fmt.Println("New connection established")
@@ -36,7 +36,7 @@ func HandleConnection(conn net.Conn, storage *Storage) {
 			continue
 		}
 
-		response := HandleCommand(value, storage)
+		response := HandleCommand(value, ctx)
 
 		writer := NewRespWriter(conn)
 		writer.Write(response)
